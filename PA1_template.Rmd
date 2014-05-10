@@ -1,20 +1,101 @@
 # Reproducible Research: Peer Assessment 1
-
-
 ## Loading and preprocessing the data
+```{r}
+library(lattice)
+fnam="activity.csv"
+df <- 
+  read.table(fnam,header=TRUE,sep=",",stringsAsFactors=FALSE)
+df$date <- as.Date(df$date)
+# get a data frame with no NAs for steps
+dfclean <- df[!is.na(df$steps),]
 
-
+```
 
 ## What is mean total number of steps taken per day?
+```{r}
+subsum <- aggregate(dfclean[,1],list(dfclean$date),sum)
+names(subsum) <- c("date","steps")
+with(subsum,plot(date,steps,type='h',lwd=5))
+submean   <- aggregate(dfclean[,1],list(dfclean$date),mean)
+# medians all zero because > half are zero
+submedian <- aggregate(dfclean[,1],list(dfclean$date),median)
 
+```
 
 
 ## What is the average daily activity pattern?
+```{r}
+# want average, by 5 min period, for all days
+sub5min <- aggregate(dfclean[,"steps"],list(dfclean$interval),mean)
+names(sub5min) <- c("Five.min.interval","average")
+with(sub5min,plot(   Five.min.interval,  average,type='l'))
 
+fmtint <- function(tint) {
+  # get 5 char alpha
+  temp <- as.character(10000+tint)
+  hrs  <- substr(temp,2,3)
+  mn   <- substr(temp,4,5)
+  ans = paste(hrs,mn,sep=":")
+  }
 
+sub5min$fmt5 <- fmtint(sub5min$Five.min.interval)
+sub5min$fac <- factor(sub5min$fmt5)
+
+with(sub5min,plot(fac, average, type='l'))
+#       Which interval contains max number of steps?
+rownumber = which(sub5min$average==max(sub5min$average))
+cat("Interval with max number of steps",sub5min$fmt5[rownumber],'\n')
+
+```
 
 ## Imputing missing values
+```{r}
+# Inputting missing values
+# use original data to get rows with NAs
+cat("Number of rows with NAs is: ",sum(!complete.cases(df)),'\n')
 
+# make dfplug be original data set with missing data filled in with estimates
+# estimates will be average for given interval
+# first, define a function to get the mean of steps for a given interval
+getmean <- function(tint) {
+  ans <- mean(df$steps[df$interval==tint], na.rm=TRUE)
+  ans
+}
+dfplug <- df
+dfplug[is.na(df$steps),"steps"] <- getmean(df$int)
+# make a histogram
+# what is mean total number of steps taken per day?
+subsum2 <- aggregate(dfplug[,1],list(dfplug$date),sum)
+names(subsum2) <- c("date","steps")
+with(subsum2,plot(date,steps,type='h',lwd=5))
 
+# Report the mean and median
+submean2   <- aggregate(dfplug[,1],list(dfplug$date),mean)
+# medians all zero because > half are zero
+submedian2 <- aggregate(dfplug[,1],list(dfplug$date),median)
+dfboth <- submean2
+dfboth$median <- submedian2$x
+names(dfboth) <- c("date", "mean", "median")
+print(dfboth)
+
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+# Use dfplug and add a field indicating whether weekday or weekend
+# first, aggregate by interval
+
+dfday <- dfplug
+dfday$dow="weekday"
+Lweekend <- which((weekdays(dfday$date)=="Saturday")|
+                    (weekdays(dfday$date)=="Sunday") )
+dfday[Lweekend,"dow"]="weekend"
+dfday$dow <- factor(dfday$dow)
+# need to aggregate by interval
+dfdaysum <- aggregate(dfday$steps,list(dfday$interval,dfday$dow),mean)
+names(dfdaysum) <- c("intv","dow","steps")
+
+xyplot(steps~intv | dow, data=dfdaysum, type='l',layout=c(1,2))
+
+```
+
